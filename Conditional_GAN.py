@@ -12,8 +12,8 @@ import torch
 
 DATA_PATH="data/MNIST"
 IMAGES_PATH="images_ConditionalGAN"
-BATCH_SIZE=64
-EPOCHS=200
+BATCH_SIZE=128
+EPOCHS=2000
 LEARNING_RATE=0.0002
 B1=0.5
 B2=0.999
@@ -21,7 +21,7 @@ Z_DIM=100
 IMAGE_SIZE=28
 CHANNELS=1
 IMAGE_SHAPE=(CHANNELS,IMAGE_SIZE,IMAGE_SIZE)
-SMAPLE_INTERVAL=200
+SMAPLE_INTERVAL=20
 CONDITION=10
 
 cuda=True if torch.cuda.is_available() else False
@@ -160,6 +160,16 @@ for epoch in range(EPOCHS):
             G_losses.append(g_loss.item())
             D_losses.append(d_loss.item())
             img_list.append(img_data)
+
+            if batches_done>=600:
+                SMAPLE_INTERVAL=1000
+
+            if batches_done>=20000:
+                SMAPLE_INTERVAL=2000
+
+            if batches_done>=100000:
+                SMAPLE_INTERVAL=5000
+
 
 
 
