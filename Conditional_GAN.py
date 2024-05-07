@@ -6,8 +6,6 @@ from torch.utils.data import DataLoader
 from torchvision import datasets
 from torch.autograd import Variable
 import torch.nn as nn
-import torch.nn.functional as F
-import torch.autograd as autograd
 import torch
 
 DATA_PATH="data/MNIST"
@@ -29,16 +27,13 @@ cuda=True if torch.cuda.is_available() else False
 class Generator(nn.Module):
     def __init__(self):
         super(Generator,self).__init__()
-
         self.label_emb=nn.Embedding(CONDITION,CONDITION)
-
         def block(in_feat,out_feat,normalized=True):
             layer=[nn.Linear(in_feat,out_feat)]
             if normalized:
                 layer.append(nn.BatchNorm1d(out_feat))
             layer.append(nn.LeakyReLU(0.2,inplace=True))
             return layer
-
         self.model=nn.Sequential(
             *block(Z_DIM+CONDITION,128,False),
             *block(128,256),
@@ -56,9 +51,7 @@ class Generator(nn.Module):
 class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator,self).__init__()
-
         self.label_emb = nn.Embedding(CONDITION,CONDITION)
-
         self.model=nn.Sequential(
             nn.Linear(CONDITION+int(np.prod(IMAGE_SHAPE)),512),
             nn.LeakyReLU(0.2,inplace=True),
@@ -70,7 +63,6 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2,inplace=True),
             nn.Linear(128,1),
         )
-
     def forward(self,image,labels):
         d_in=torch.cat((image.view(image.size(0),-1),self.label_emb(labels)),-1)
         validity=self.model(d_in)

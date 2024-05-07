@@ -10,7 +10,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-IMAGES_PATH="images"
+IMAGES_PATH="images_WGAN"
 DATA_PATH="data/MNIST"
 
 EPOCHS=1000

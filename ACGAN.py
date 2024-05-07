@@ -4,14 +4,14 @@ import torchvision
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 from torch.utils.data import DataLoader
-from torchvision import datasets
 from torch.autograd import Variable
+from torchvision import datasets
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
 DATA_PATH="data/MNIST"
-IMG_PATH="images_ACGAN"
+IMG_PATH="images_ACGAN/"
 Z_DIM=100
 BATCH_SIZE=64
 EPOCHS=200
@@ -39,17 +39,18 @@ class Generator(nn.Module):
         self.label_emb=nn.Embedding(CLASS,Z_DIM)
         self.img_size=IMG_SIZE
         self.l1=nn.Sequential(nn.Linear(Z_DIM,128*self.img_size**2))
-        def block(in_feat, out_feat,normalize=True):
-            layers=[nn.ConvTranspose2d(in_feat, out_feat, kernel_size=3, stride=1, padding=1)]
-            if normalize:
-                layers.append(nn.BatchNorm2d(out_feat))
-            layers.append(nn.LeakyReLU(0.2,inplace=True))
-            return layers
+
         self.model=nn.Sequential(
-            *block(128, 128, normalize=False),
-            *block(128,64),
-            *block(64,CHANNELS),
-            # *block(32,CHANNELS),
+            nn.BatchNorm2d(128),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(128,0.8),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Upsample(scale_factor=2),
+            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(64,0.8),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(64, CHANNELS, kernel_size=3, stride=1, padding=1),
             nn.Tanh()
         )
     def forward(self,noise,label):
@@ -63,18 +64,17 @@ class Discriminator(nn.Module):
     def __init__(self):
         super(Discriminator, self).__init__()
         def block(in_feat, out_feat, normalize=True):
-            layers=[nn.Conv2d(in_feat, out_feat, kernel_size=3, stride=2, padding=1)]
+            block = [nn.Conv2d(in_feat, out_feat, 3, 2, 1), nn.LeakyReLU(0.2, inplace=True), nn.Dropout2d(0.25)]
             if normalize:
-                layers.append(nn.BatchNorm2d(out_feat))
-            layers.append(nn.LeakyReLU(0.2,inplace=True))
-            return layers
-        self.size=IMG_SIZE//2**4
+                block.append(nn.BatchNorm2d(out_feat, 0.8))
+            return block
+        dz_size=IMG_SIZE//2**4
         self.adv_layer=nn.Sequential(
-            nn.Linear(128*self.size**2, 1),
+            nn.Linear(128*dz_size**2, 1),
             nn.Sigmoid()
         )
         self.aux_layer=nn.Sequential(
-            nn.Linear(128*self.size**2, CLASS),
+            nn.Linear(128*dz_size**2, CLASS),
             nn.Softmax()
         )
         self.model=nn.Sequential(
@@ -94,6 +94,7 @@ adversarial_loss=nn.BCELoss()
 auxiliary_loss=nn.CrossEntropyLoss()
 generator=Generator()
 discriminator=Discriminator()
+print(torch.cuda.is_available())
 if torch.cuda.is_available():
     generator.cuda()
     discriminator.cuda()
@@ -106,19 +107,20 @@ if torch.cuda.is_available():
 #     auxiliary_loss.to(DEVICE)
 generator.apply(weights_init)
 discriminator.apply(weights_init)
-dataloader = torch.utils.data.DataLoader(
-    torchvision.datasets.MNIST(
+dataloader=torch.utils.data.DataLoader(
+    datasets.MNIST(
         DATA_PATH,
         train=True,
-        download=True,
-        transform=transforms.Compose([
-            transforms.Resize(IMG_SIZE),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ]),
+        transform=transforms.Compose(
+            [
+                transforms.Resize(32),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5],[0.5]),
+            ]
+        ),
     ),
     batch_size=BATCH_SIZE,
-    shuffle=True
+    shuffle=True,
 )
 optimizer_G = torch.optim.Adam(generator.parameters(), lr=LEARNING_RATE,betas=(B1,B2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=LEARNING_RATE,betas=(B1,B2))
@@ -139,7 +141,7 @@ for epoch in range(EPOCHS):
         valid=Variable(FloatTensor(batch_size,1).fill_(1.0),requires_grad=False)
         fake=Variable(FloatTensor(batch_size,1).fill_(0.0),requires_grad=False)
         real_imgs=Variable(imgs.type(FloatTensor))
-        real_labels=Variable(labels.type(LongTensor))
+        labels=Variable(labels.type(LongTensor))
         optimizer_G.zero_grad()
         z=Variable(FloatTensor(np.random.normal(0,1,(batch_size,Z_DIM))))
         gen_labels=Variable(LongTensor(np.random.randint(0,CLASS,batch_size)))
